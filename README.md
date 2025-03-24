@@ -146,3 +146,35 @@ inner join stores s
 on s.storeid = t.storeid
 where s.country = 'Portugal'
 ```
+**1. Analysing distribution**
+- Sales per store/city (one city has only one store):
+```sql
+select city, count(distinct invoiceid) as t_sales
+from pt_transactions
+where transaction_type = 'Sale'
+group by city
+```
+
+- Portuguese customers per age:
+(we analyse from the transactions table because some customers might have other nationality and purchase in portuguese shops).
+```sql
+with cte as(
+select c.customerid, (2025-date_part('year', date_of_birth)) as age
+from customers c
+right join pt_transactions pt
+on c.customerid = pt.customerid
+)
+select age, count(distinct customerid) t
+from cte
+group by age
+order by t desc
+```
+- Portuguese customers per gender (M/F/D):
+```sql
+select gender, count(distinct pt.customerid) t
+from customers c 
+right join pt_transactions pt
+on c.customerid = pt.customerid
+group by gender
+order by t desc
+```
