@@ -146,8 +146,33 @@ inner join stores s
 on s.storeid = t.storeid
 where s.country = 'Portugal'
 ```
-**1. Analysing distribution**
-- Sales per store/city (one city has only one store):
+**Adressing data quality issues**
+Some data on return invoices are duplicated (the same value twice, or some of the products being returned twice), causing returns to exceed purchase (one invoice should have only one invoice total, but the issue cuases one invoice to have two or more invoice total, caused by the some product being counted twice). The problem is probablt related to data entry. My solution is to relate each sale with its return in a view, but keeping only the max (min is used in the query since its a negative value) returned value to each invoice (we then avoid duplication of the entire invoice, or duplication of some returned products).
+```sql
+CREATE VIEW pt_revenue AS 
+with sales as(
+	select invoiceid as sale_id, invoice_total as t_sale
+	from pt_transactions
+	where transaction_type = 'Sale'
+),
+returns as (
+	select invoiceid as return_id, min(invoice_total) as t_return
+	from pt_transactions
+	where transaction_type = 'Return'
+	group by return_id
+),
+cte as (
+	select distinct sale_id, t_sale, return_id, COALESCE(t_return, 0) t_return
+	from sales s
+	left join returns r
+	on substring(sale_id, 5) = substring(return_id, 5)
+)
+select sale_id, t_sale, return_id, t_return, (t_sale + t_return) as t_invoice
+from cte
+```
+
+**1. Analysing frequency**
+**- Sales per store/city (one city has only one store):**
 ```sql
 select city, count(distinct invoiceid) as t_sales
 from pt_transactions
@@ -155,8 +180,8 @@ where transaction_type = 'Sale'
 group by city
 ```
 
-- Portuguese customers per age:
-(we analyse from the transactions table because some customers might have other nationality and purchase in portuguese shops).
+**- Portuguese customers per age:**
+(we analyse from the transactions table because some customers might have other nationality and purchase in portuguese shops. We are considering only transactions = 'sale').
 ```sql
 with cte as(
 select c.customerid, (2025-date_part('year', date_of_birth)) as age
@@ -169,7 +194,7 @@ from cte
 group by age
 order by t desc
 ```
-- Portuguese customers per gender (M/F/D):
+**- Portuguese customers per gender (M/F/D):**
 ```sql
 select gender, count(distinct pt.customerid) t
 from customers c 
@@ -178,3 +203,96 @@ on c.customerid = pt.customerid
 group by gender
 order by t desc
 ```
+**- Total purchases per customer:**
+```sql
+select p.customerid, (2025-date_part('year', date_of_birth)) as age, count(distinct invoiceid) as t_purchases
+from pt_transactions p
+left join customers c
+on p.customerid = c.customerid
+where transaction_type = 'Sale'
+group by p.customerid, age, gender
+order by t_purchases desc
+```
+**- Minimum, maximum and mean of a sales transaction:**
+Filtering t_invoice > 0.5 to avoid possible taxes and fees.
+```sql
+select min(t_invoice), max(t_invoice), ROUND(avg(t_invoice)::numeric, 2)
+from pt_revenue
+where t_invoice > 0.5
+```
+
+**- Total spent on sales transactions per customer:**
+
+```sql
+select customerid, round(sum(distinct t_invoice)::numeric, 2) as sum
+from pt_revenue r
+left join pt_transactions t
+on r.sale_id = t.invoiceid
+where t_invoice > 0.5
+group by customerid
+order by sum desc
+limit 5
+```
+
+
+**- Average of total spent in sales transactions per customer:**
+```sql
+with cte as(
+	select distinct customerid, t_invoice 
+	from pt_revenue r
+	inner join pt_transactions t
+	on r.sale_id = t.invoiceid
+	where t_invoice > 0.5
+)
+select customerid, round(avg(t_invoice)::numeric, 2) as avg_spent
+from cte
+group by customerid
+order by avg_spent desc
+
+```
+
+**2. Analysing correlation**
+- Correlation between age and total purchases:
+```sql
+with cte as (
+select count(distinct c.customerid) as t, (2025-date_part('year', date_of_birth)) as age
+from customers c
+right join pt_transactions pt
+on c.customerid = pt.customerid
+where transaction_type = 'Sale'
+group by age
+order by t desc
+)
+select CORR(t, age)
+from cte
+```
+**The result is a coeficient of 0.06, suggesting that there is no relationship between customers' age and total purchases.**
+
+- Correlation between age and total spent:
+```sql
+with cte as(
+	select distinct customerid, t_invoice 
+	from pt_revenue r
+	inner join pt_transactions t
+	on r.sale_id = t.invoiceid
+	where t_invoice > 0.5
+),
+ages as (
+	select customerid, (2025-date_part('year', date_of_birth)) as age, round(sum(t_invoice)::numeric, 2) as t_spent
+	from cte
+	inner join customers
+	using (customerid)
+	group by customerid, age
+)
+select CORR(age, t_spent)
+from ages
+```
+**The result is a coeficient of 0.05, suggesting that there is no relationship between customers' age and total spent.**
+
+
+
+
+# Data visualization
+Building a report in Power BI to be used by the stakeholder. It should be simple and direct to answer BI questions.
+
+- Data distribution: historiogram for customer buying (age and total purchase), spending habits of customers (total spent per transaction)
