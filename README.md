@@ -42,8 +42,8 @@ The primary stakeholder is the **Manager of Portuguese Stores**, who needs data-
 	- Are certain products more prone to returns?
 	
 2. Customer behaviour 
-	- Who are our top buyers? (demographic segmentation)
-	- Whats the average order value of customers?
+	- Who are our top buyers?
+	- Whats the average order value (AOV) of customers?
 	- Do younger customers buy different products than older ones?
 	- Are return rates higher for certain age groups?
 
@@ -176,6 +176,15 @@ from cte
 ```
 
 ## **1. Sales analytics**
+**Sales, profit and revenue by month, quarter and year**
+
+**- Minimum, maximum and mean of a sales revenue:**
+Filtering t_invoice > 0.5 to avoid possible taxes and fees.
+```sql
+select min(t_invoice), max(t_invoice), ROUND(avg(t_invoice)::numeric, 2)
+from pt_revenue
+where t_invoice > 0.5
+```
 
 **-Total revenue per year:**
 ```sql
@@ -197,15 +206,14 @@ where t_invoice > 0
 group by month
 ```
 
-**-Total quartely revenue in 2023 and 2024:**
+**-Total quartely revenue:**
 ```sql
-SELECT date_trunc('quarter', date) as month, round(sum(t_invoice)::numeric, 2) as monthly_revenue
+SELECT date_trunc('quarter', date) as quarter, round(sum(t_invoice)::numeric, 2) as quartely_revenue
 from pt_revenue
 left join pt_transactions
 on sale_id = invoiceid
 where t_invoice > 0 
-and date_part('year', date) != 2025
-group by month
+group by quarter
 ```
 **-Analysing seasonality trends (per month):**
 ```sql
@@ -238,7 +246,7 @@ where t_invoice > 0
 group by storeid, quarter, city
 order by quarter, storeid
 ```
-**- top 10 most sold products:**
+**- Top 10 most sold products:**
 ```sql
 with sales as (
 	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
@@ -253,21 +261,21 @@ group by productid
 order by sum desc
 limit 10
 ```
-**-products sold per category:**
+**-Products sold per subcategory and quarter:**
 ```sql
 with sales as (
-	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
+	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date_trunc('quarter', date) as quarter
 	from pt_revenue r
 	left join pt_transactions p
 	on r.sale_id = p.invoiceid
 	where t_invoice > 0
 )
-SELECT category, sum(quantity)
+SELECT sub_category, sum(quantity) as products_sold, quarter
 from sales
 left join products
 using(productid)
-group by category
-order by sum desc
+group by sub_category, quarter
+order by quarter, sub_category desc
 ```
 
 **- Percentage comparison between sales for each category:**
@@ -290,7 +298,7 @@ select category, round(t_per_cat*100.0/(select sum(quantity) from sales),2) as p
 from cte
 order by perc desc
 ```
-**-percentage of revenue contribution per category**:
+**-Percentage of total sales revenue contribution per category**:
 ```sql
 with sales as (
 	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
@@ -310,7 +318,7 @@ select category, round(revenue_per_category*100.0/(select sum(line_total)::numer
 from cte
 order by rev_per desc
 ```
-**-percentage of revenue contribution per sub category:**
+**-Percentage of total sales revenue contribution per sub category:**
 ```sql
 with sales as (
 	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
@@ -330,7 +338,7 @@ select sub_category, round(revenue_per_sub_category*100.0/(select sum(line_total
 from cte
 order by rev_per desc
 ```
-**-percentage of revenue contribution per product:**
+**-Percentage of total sales revenue contribution per product:**
 ```sql
 with sales as (
 	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
@@ -351,7 +359,146 @@ from cte
 order by rev_per desc
 limit 10
 ```
-**-total returned products:**
+
+**-Overall profit margin:**
+```sql
+with temp as (
+	select invoiceid, line_total, quantity, productid
+	from pt_revenue
+	left join pt_transactions
+	on pt_revenue.sale_id = pt_transactions.invoiceid
+	where return_id is null
+),
+cte as(
+	select productid, invoiceid, (production_cost*quantity) as production_cost, line_total as sale_value, line_total - (production_cost*quantity) as profit_margin
+	from temp
+	left join products
+	using(productid)
+)
+select sum(production_cost) as t_costs, sum(sale_value) as t_sales, sum(profit_margin) as profit, sum(profit_margin)*100.0/sum(sale_value) as profit_perc
+from cte
+```
+
+**- Profit margin per quarter:**
+```sql
+with temp as (
+	select invoiceid, line_total, quantity, productid, date_trunc('quarter', date) as quarter
+	from pt_revenue
+	left join pt_transactions
+	on pt_revenue.sale_id = pt_transactions.invoiceid
+	where return_id is null
+),
+cte as(
+	select productid, invoiceid, (production_cost*quantity) as production_cost, 
+		line_total as sale_value, line_total - (production_cost*quantity) as profit_margin,
+		quarter
+	from temp
+	left join products
+	using(productid)
+)
+select quarter, round(sum(production_cost)::numeric, 2) as t_costs, round(sum(sale_value)::numeric, 2) as t_sales, 
+	round(sum(profit_margin)::numeric,2) as profit, 
+	round((sum(profit_margin)*100.0/sum(sale_value))::numeric, 2) as profit_perc
+from cte
+group by quarter
+order by quarter asc
+```
+**- Profit margin per product sale:**
+```sql
+with cte as (
+	select productid, sale_id, quantity, line_total 
+	from pt_revenue r 
+	left join pt_transactions t
+	on r.sale_id = t.invoiceid
+	where return_id is null
+),
+temp as (
+	select sale_id, productid, (production_cost*quantity) as cost, line_total as revenue,
+		line_total-(production_cost*quantity) as profit
+	from cte
+	left join products
+	using (productid)
+)
+select productid, round(sum(cost)::numeric, 2) as total_cost, round(sum(revenue)::numeric, 2) as total_revenue, 
+	round(sum(profit)::numeric, 2) as total_profit,
+	round((sum(profit)*100.0/sum(revenue))::numeric, 2) as profit_perc
+from temp
+group by productid
+order by profit_perc desc
+limit 5
+```
+
+**-Profit margin per product subcategory:**
+```sql
+with cte as (
+	select productid, sale_id, quantity, line_total 
+	from pt_revenue r 
+	left join pt_transactions t
+	on r.sale_id = t.invoiceid
+	where return_id is null
+),
+temp as (
+	select sale_id, productid, sub_category, (production_cost*quantity) as cost, line_total as revenue,
+		line_total-(production_cost*quantity) as profit
+	from cte
+	left join products
+	using (productid)
+)
+select sub_category, round(sum(cost)::numeric, 2) as total_cost, round(sum(revenue)::numeric, 2) as total_revenue, 
+	round(sum(profit)::numeric, 2) as total_profit,
+	round((sum(profit)*100.0/sum(revenue))::numeric, 2) as profit_perc
+from temp
+group by sub_category
+order by profit_perc desc
+```
+**-Profit margin per product category:**
+```sql
+with cte as (
+	select productid, sale_id, quantity, line_total 
+	from pt_revenue r 
+	left join pt_transactions t
+	on r.sale_id = t.invoiceid
+	where return_id is null
+),
+temp as (
+	select sale_id, productid, category, (production_cost*quantity) as cost, line_total as revenue,
+		line_total-(production_cost*quantity) as profit
+	from cte
+	left join products
+	using (productid)
+)
+select category, round(sum(cost)::numeric, 2) as total_cost, round(sum(revenue)::numeric, 2) as total_revenue, 
+	round(sum(profit)::numeric, 2) as total_profit,
+	round((sum(profit)*100.0/sum(revenue))::numeric, 2) as profit_perc
+from temp
+group by category
+order by profit_perc desc
+limit 50
+```
+
+**- Total sales per quarter:**
+```sql
+select date_trunc('quarter', date) as quarter, count(distinct sale_id) as total_sales
+from pt_revenue
+left join pt_transactions
+on pt_revenue.sale_id = pt_transactions.invoiceid
+where return_id is null
+group by quarter
+order by quarter asc
+```
+
+**- Total products sold per quarter:**
+```sql
+select date_trunc('quarter', date) as quarter, count(productid) as t_sold_products
+from pt_revenue
+left join pt_transactions
+on pt_revenue.sale_id = pt_transactions.invoiceid
+where return_id is null
+group by quarter
+order by quarter asc
+```
+
+**-Total returned products:**
 ```sql
 with cte as(
 	select sum(quantity) as t_returned
@@ -367,6 +514,7 @@ select t_sold, t_returned
 from cte
 cross join sale
 ```
+
 **-Returns rate**:
 ```sql
 with cte as(
@@ -383,7 +531,8 @@ select round(t_returned*100.0/t_sold,2) as return_perc
 from cte
 cross join sale
 ```
-**-top 10 products with high return rate:**
+
+**-Top 10 products with high return rate:**
 ```sql
 with cte as(
 	select productid, sum(quantity) as t_sold
@@ -402,67 +551,44 @@ from cte
 right join sale
 using(productid)
 where t_returned*100.0/t_sold <=100
+and t_sold > 5
 order by perc desc
 limit 10
+```
 
+**-Top 10 product categories with high return rate:**
+```sql
+with cte as(
+	select productid, sum(quantity) as t_sold
+	from pt_transactions
+	where transaction_type = 'Sale'
+	group by productid
+),
+sale as(
+	select productid, sum(quantity) as t_returned
+	from pt_transactions
+	where transaction_type = 'Return'
+	group by productid
+),
+joined as(
+	select productid, t_sold, t_returned
+	from cte
+	right join sale
+	using(productid)
+)
+select sub_category, sum(t_sold) as t_products_sold, sum(t_returned) t_products_returned, 
+	round((sum(t_returned)*100.0/sum(t_sold))::numeric, 2) as return_rate
+from joined
+left join products
+using(productid)
+group by sub_category
+order by return_rate desc
+limit 10
 ```
 
 ## **2. Customer analytics**
-**- Portuguese customers per age:**
-(we analyse from the transactions table because some customers might have other nationality and purchase in portuguese shops. We are considering only transactions = 'sale').
-```sql
-with cte as(
-select c.customerid, (2025-date_part('year', date_of_birth)) as age
-from customers c
-right join pt_transactions pt
-on c.customerid = pt.customerid
-)
-select age, count(distinct customerid) t
-from cte
-group by age
-order by t desc
-```
-**- Portuguese customers per gender (M/F/D):**
-```sql
-select gender, count(distinct pt.customerid) t
-from customers c 
-right join pt_transactions pt
-on c.customerid = pt.customerid
-group by gender
-order by t desc
-```
-**- Total purchases per customer:**
-```sql
-select p.customerid, (2025-date_part('year', date_of_birth)) as age, count(distinct invoiceid) as t_purchases
-from pt_transactions p
-left join customers c
-on p.customerid = c.customerid
-where transaction_type = 'Sale'
-group by p.customerid, age, gender
-order by t_purchases desc
-```
-**- Minimum, maximum and mean of a sales transaction:**
-Filtering t_invoice > 0.5 to avoid possible taxes and fees.
-```sql
-select min(t_invoice), max(t_invoice), ROUND(avg(t_invoice)::numeric, 2)
-from pt_revenue
-where t_invoice > 0.5
-```
 
-**- Total spent on sales transactions per customer:**
-
-```sql
-select customerid, round(sum(distinct t_invoice)::numeric, 2) as sum
-from pt_revenue r
-left join pt_transactions t
-on r.sale_id = t.invoiceid
-where t_invoice > 0.5
-group by customerid
-order by sum desc
-limit 5
-```
-
-**- Average of total spent in sales transactions per customer:**
+**- Total purchases, max spent, min, spent and AOV per customer:**
 ```sql
 with cte as(
 	select distinct customerid, t_invoice 
@@ -471,49 +597,83 @@ with cte as(
 	on r.sale_id = t.invoiceid
 	where t_invoice > 0.5
 )
-select customerid, round(avg(t_invoice)::numeric, 2) as avg_spent
+select customerid, round(avg(t_invoice)::numeric, 2) as avg_spent, max(t_invoice) as max_spent, min(t_invoice) as min_spent, count(t_invoice) as total_purchases
 from cte
 group by customerid
 order by avg_spent desc
-
 ```
 
-**- Correlation between age and total purchases:**
+**- Customers from portuguese shops per age and gender-**
 ```sql
 with cte as (
-select count(distinct c.customerid) as t, (2025-date_part('year', date_of_birth)) as age
-from customers c
-right join pt_transactions pt
-on c.customerid = pt.customerid
-where transaction_type = 'Sale'
-group by age
-order by t desc
+	select r.*, customerid
+	from pt_revenue r 
+	left join pt_transactions t
+	on r.sale_id = t.invoiceid
 )
-select CORR(t, age)
+select customerid, 2025-date_part('year', date_of_birth) as age, gender, round(sum(t_invoice)::numeric, 2) as total_revenue
 from cte
+left join customers
+using(customerid)
+group by customerid, age, gender
+order by total_revenue desc
 ```
-**The result is a coeficient of 0.06, suggesting that there is no relationship between customers' age and total purchases.**
 
-**- Correlation between age and total spent:**
+**- Max and min customers age:**
+```sql
+with cte as (
+	select r.*, customerid
+	from pt_revenue r 
+	left join pt_transactions t
+	on r.sale_id = t.invoiceid
+)
+select max(2025-date_part('year', date_of_birth)) as max_age,  min(2025-date_part('year', date_of_birth)) as min_age
+from cte
+left join customers
+using(customerid)
+```
+**-RFM analysis:**
 ```sql
 with cte as(
-	select distinct customerid, t_invoice 
-	from pt_revenue r
-	inner join pt_transactions t
-	on r.sale_id = t.invoiceid
-	where t_invoice > 0.5
-),
-ages as (
-	select customerid, (2025-date_part('year', date_of_birth)) as age, round(sum(t_invoice)::numeric, 2) as t_spent
-	from cte
-	inner join customers
-	using (customerid)
-	group by customerid, age
+	select customerid, 
+		max(date_trunc('day', date)::date) as last_purchase_date, 
+		count(distinct invoiceid) as frequency, 
+		round(sum(invoice_total)::numeric, 2) as monetary
+	from pt_transactions
+	where transaction_type = 'Sale'
+	group by customerid
 )
-select CORR(age, t_spent)
-from ages
+select customerid, (current_date - last_purchase_date) as recency, frequency, monetary
+from cte
+order by monetary desc
 ```
-**The result is a coeficient of 0.05, suggesting that there is no relationship between customers' age and total spent.**
+**- Defining RFM scores:**
+Calculating percentiles Q1, Q2, Q3 and Q4.
+```sql
+with cte as(
+	select customerid, 
+		max(date_trunc('day', date)::date) as last_purchase_date, 
+		count(distinct invoiceid) as frequency, 
+		round(sum(invoice_total)::numeric, 2) as monetary
+	from pt_transactions
+	where transaction_type = 'Sale'
+	group by customerid
+),
+rfm as(
+	select customerid, (current_date - last_purchase_date) as recency, frequency, monetary
+	from cte
+	order by monetary desc
+)
+select max(recency), min(recency), avg(recency),
+	max(frequency), min(frequency), avg(frequency),
+	max(monetary), min(monetary), avg(monetary)
+from rfm
+```
+
+Output (max, min, and avg):
+- Recency: 823, 16, 243.0
+- Frequency: 30, 1, 3.8
+- Monetary: 8650, 2.5, 516.9
 
 
 
@@ -522,3 +682,13 @@ from ages
 Building a report in Power BI to be used by the stakeholder. It should be simple and direct to answer BI questions.
 
 - Data distribution: historiogram for customer buying (age and total purchase), spending habits of customers (total spent per transaction)
+
+# BI insights
+- The quarter of 2023/10 had a peak in sales, products sold, and revenue, but the profit margin was average.
+- Products from the subcategory 'Coats and Blazer', 'Pants and Jeans' and 'Suits and Sets' contribute the most to the total sales revenue (respectivelly 13.2%, 12.5%, 11.7%).
+- Products from the subcategory 'Baby(0-12 months)' are the most profitable, even though their sales volume and contribution to total sales revenue is lower than average.
+- Products from the category 'Feminine' contribute 60.1% to the total sales revenue, Masculine 30.8% and Children 8.9%.
+- Products from the category 'Feminine' and 'Masculine' have a 57% of profit margin, while 'Children' have 54.5% of profit margin.
+- Sales peak in the months of March, September, October and December.
+- 5.5% of all bought products were returned.
+- Products from the subcatgory 'Baby (0-12months)', 'Pajamas' and 'Underwear and pajamas' have the highers return rate (respectively 9.3%, 8.8%, and 8.2%).
