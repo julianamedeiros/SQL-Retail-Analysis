@@ -2,39 +2,43 @@
 SQL-powered analysis of retail fashion data, exploring sales trends, customer behavior, and market insights to help answer stakeholders' BI questions.
 *The goal and stakeholders are ficticious. This project was made for educational purposes.
 
-# Contents:
-1. The dataset
-2. Technologies Used
-3. Project Goal
-4. Stakeholder and Business Context
-5. BI questions
-6. Creating the Database
-7. Exploratory Data Analysis
-   7.1. Sales analytics
-   7.2. Customer behaviour
-8. Data visualization
-9. Business insights
+# Overview
+## Contents:
+1. [The Dataset](#the-dataset)
+2. [Technologies Used](#technologies-used)
+3. [Project Goal](#project-goal)
+4. [Stakeholder and Business Context](#stakeholder-and-business-context)
+5. [BI Questions](#bi-questions)
+6. [Creating the Database](#creating-the-database)
+7. [Exploratory Data Analysis (EDA)](#exploratory-data-analysis)
+   - [Sales Analysis](#sales-analysis)
+     - Revenue
+     - Profit Margin
+     - Sales Volume and Product
+     - Returns
+     - Store/Region Performance
+   - [Customer Behavior](#customer-behavior)
+8. [Data Visualization](#data-visualization)
+9. [Business Insights](#business-insights)
 
-
-# The dataset
+## The Dataset
 Sales simulation for 2 years of a multinational brand.
 Downloaded through API. In: https://www.kaggle.com/datasets/ricgomes/global-fashion-retail-stores-dataset/data?select=customers.csv
 
-# Technologies used:
+## Technologies Used:
 - PostgreSQL
 - SQL
 - Power BI
 
-
-# Project Goal:
+## Project Goal:
 This project aims to analyze two years of transaction data for a global fashion retail company to support Business Intelligence (BI) decision-making. The main objective is to provide actionable insights that help stakeholders optimize sales and marketing strategies for the upcoming year.
 
-# Stakeholder & Business Context
+## Stakeholder and Business Context
 The primary stakeholder is the **Manager of Portuguese Stores**, who needs data-driven insights to make informed decisions about:
 - Sales performance trends
 - Customer purchasing behavior
 
-# BI questions:
+## BI Questions:
 1.  Sales and marketing strategy:
 	- Which products and categories contribute the most and the less to the revenue?
 	- Are there regions or stores that are underperforming?
@@ -175,16 +179,8 @@ select sale_id, t_sale, return_id, t_return, (t_sale + t_return) as t_invoice
 from cte
 ```
 
-## **1. Sales analytics**
-**Sales, profit and revenue by month, quarter and year**
-
-**- Minimum, maximum and mean of a sales revenue:**
-Filtering t_invoice > 0.5 to avoid possible taxes and fees.
-```sql
-select min(t_invoice), max(t_invoice), ROUND(avg(t_invoice)::numeric, 2)
-from pt_revenue
-where t_invoice > 0.5
-```
+## **Sales Analysis**
+### Revenue
 
 **-Total revenue per year:**
 ```sql
@@ -196,6 +192,7 @@ where t_invoice > 0
 group by date_part('year', date)
 limit 20
 ```
+
 **-Total revenue per month/year:**
 ```sql
 SELECT date_trunc('month', date) as month, round(sum(t_invoice)::numeric, 2) as monthly_revenue
@@ -206,16 +203,7 @@ where t_invoice > 0
 group by month
 ```
 
-**-Total quartely revenue:**
-```sql
-SELECT date_trunc('quarter', date) as quarter, round(sum(t_invoice)::numeric, 2) as quartely_revenue
-from pt_revenue
-left join pt_transactions
-on sale_id = invoiceid
-where t_invoice > 0 
-group by quarter
-```
-**-Analysing seasonality trends (per month):**
+**- Seasonal net sales peak:**
 ```sql
 WITH CTE AS(
 	SELECT date_trunc('month', date) as month, round(sum(t_invoice)::numeric, 2) as monthly_rev
@@ -236,129 +224,16 @@ from trends
 where monthly_rev > prev_month_rev 
 and monthly_rev > next_month_rev
 ```
-**- Quartely revenue per store:**
+
+**- Minimum, maximum and mean of sales revenue:**
+Filtering t_invoice > 0.5 to avoid possible taxes and fees.
 ```sql
-select round(sum(t_invoice)::numeric, 2) as revenue, storeid, city, date_trunc('quarter', date) as quarter
-from pt_revenue r
-left join pt_transactions t
-on sale_id = invoiceid
-where t_invoice > 0
-group by storeid, quarter, city
-order by quarter, storeid
-```
-**- Top 10 most sold products:**
-```sql
-with sales as (
-	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
-	from pt_revenue r
-	left join pt_transactions p
-	on r.sale_id = p.invoiceid
-	where t_invoice > 0
-)
-SELECT productid, sum(quantity)
-from sales
-group by productid
-order by sum desc
-limit 10
-```
-**-Products sold per subcategory and quarter:**
-```sql
-with sales as (
-	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date_trunc('quarter', date) as quarter
-	from pt_revenue r
-	left join pt_transactions p
-	on r.sale_id = p.invoiceid
-	where t_invoice > 0
-)
-SELECT sub_category, sum(quantity) as products_sold, quarter
-from sales
-left join products
-using(productid)
-group by sub_category, quarter
-order by quarter, sub_category desc
+select min(t_invoice), max(t_invoice), ROUND(avg(t_invoice)::numeric, 2)
+from pt_revenue
+where t_invoice > 0.5
 ```
 
-**- Percentage comparison between sales for each category:**
-```sql
-with sales as (
-	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
-	from pt_revenue r
-	left join pt_transactions p
-	on r.sale_id = p.invoiceid
-	where t_invoice > 0
-),
-cte as(
-	SELECT category, sum(quantity) as t_per_cat
-	from sales
-	left join products
-	using(productid)
-	group by category
-)
-select category, round(t_per_cat*100.0/(select sum(quantity) from sales),2) as perc
-from cte
-order by perc desc
-```
-**-Percentage of total sales revenue contribution per category**:
-```sql
-with sales as (
-	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
-	from pt_revenue r
-	left join pt_transactions p
-	on r.sale_id = p.invoiceid
-	where t_invoice > 0
-),
-cte as(
-	SELECT category, round(sum(line_total)::numeric,2) as revenue_per_category
-	from sales
-	left join products
-	using(productid)
-	group by category
-)
-select category, round(revenue_per_category*100.0/(select sum(line_total)::numeric from sales),2) as rev_per
-from cte
-order by rev_per desc
-```
-**-Percentage of total sales revenue contribution per sub category:**
-```sql
-with sales as (
-	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
-	from pt_revenue r
-	left join pt_transactions p
-	on r.sale_id = p.invoiceid
-	where t_invoice > 0
-),
-cte as(
-	SELECT sub_category, round(sum(line_total)::numeric,2) as revenue_per_sub_category
-	from sales
-	left join products
-	using(productid)
-	group by sub_category
-)
-select sub_category, round(revenue_per_sub_category*100.0/(select sum(line_total)::numeric from sales),2) as rev_per
-from cte
-order by rev_per desc
-```
-**-Percentage of total sales revenue contribution per product:**
-```sql
-with sales as (
-	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
-	from pt_revenue r
-	left join pt_transactions p
-	on r.sale_id = p.invoiceid
-	where t_invoice > 0
-),
-cte as(
-	SELECT productid, round(sum(line_total)::numeric,2) as revenue_per_product, count(productid) as t_sold
-	from sales
-	left join products
-	using(productid)
-	group by productid
-)
-select productid, t_sold, round(revenue_per_product*100.0/(select sum(line_total)::numeric from sales),4) as rev_per
-from cte
-order by rev_per desc
-limit 10
-```
+### Profit Margin
 
 **-Overall profit margin:**
 ```sql
@@ -475,8 +350,27 @@ group by category
 order by profit_perc desc
 limit 50
 ```
+### Sales Volume and Product
 
-**- Total sales per quarter:**
+**- Top 10 net sold products:**
+```sql
+with sales as (
+	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
+	from pt_revenue r
+	left join pt_transactions p
+	on r.sale_id = p.invoiceid
+	where t_invoice > 0
+)
+SELECT productid, category, sub_category, description_pt, sum(quantity) total_sold
+from sales
+left join products
+using (productid)
+group by productid, category, sub_category, description_pt
+order by total_sold desc
+limit 10
+```
+
+**- Total net sales per quarter:**
 ```sql
 select date_trunc('quarter', date) as quarter, count(distinct sale_id) as total_sales
 from pt_revenue
@@ -487,7 +381,7 @@ group by quarter
 order by quarter asc
 ```
 
-**- Total products sold per quarter:**
+**- Total products net sold per quarter:**
 ```sql
 select date_trunc('quarter', date) as quarter, count(productid) as t_sold_products
 from pt_revenue
@@ -498,41 +392,126 @@ group by quarter
 order by quarter asc
 ```
 
-**-Total returned products:**
+**-Products net sold per subcategory and quarter:**
+```sql
+with sales as (
+	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date_trunc('quarter', date) as quarter
+	from pt_revenue r
+	left join pt_transactions p
+	on r.sale_id = p.invoiceid
+	where t_invoice > 0
+)
+SELECT sub_category, sum(quantity) as products_sold, quarter
+from sales
+left join products
+using(productid)
+group by sub_category, quarter
+order by quarter, sub_category desc
+```
+
+**- % Net sales per category comparison:**
+```sql
+with sales as (
+	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
+	from pt_revenue r
+	left join pt_transactions p
+	on r.sale_id = p.invoiceid
+	where t_invoice > 0
+),
+cte as(
+	SELECT category, sum(quantity) as t_per_cat
+	from sales
+	left join products
+	using(productid)
+	group by category
+)
+select category, round(t_per_cat*100.0/(select sum(quantity) from sales),2) as perc
+from cte
+order by perc desc
+```
+
+**- % Contribution to Net Sales Revenue per Category**:
+```sql
+with sales as (
+	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
+	from pt_revenue r
+	left join pt_transactions p
+	on r.sale_id = p.invoiceid
+	where t_invoice > 0
+),
+cte as(
+	SELECT category, round(sum(line_total)::numeric,2) as revenue_per_category
+	from sales
+	left join products
+	using(productid)
+	group by category
+)
+select category, round(revenue_per_category*100.0/(select sum(line_total)::numeric from sales),2) as rev_per
+from cte
+order by rev_per desc
+```
+**- % Contribution to Net Sales Revenue per Subcategory:**
+```sql
+with sales as (
+	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
+	from pt_revenue r
+	left join pt_transactions p
+	on r.sale_id = p.invoiceid
+	where t_invoice > 0
+),
+cte as(
+	SELECT sub_category, round(sum(line_total)::numeric,2) as revenue_per_sub_category
+	from sales
+	left join products
+	using(productid)
+	group by sub_category
+)
+select sub_category, round(revenue_per_sub_category*100.0/(select sum(line_total)::numeric from sales),2) as rev_per
+from cte
+order by rev_per desc
+```
+**- % Contribution to Net Sales Revenue per Product:**
+```sql
+with sales as (
+	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
+	from pt_revenue r
+	left join pt_transactions p
+	on r.sale_id = p.invoiceid
+	where t_invoice > 0
+),
+cte as(
+	SELECT productid, round(sum(line_total)::numeric,2) as revenue_per_product, count(productid) as t_sold
+	from sales
+	left join products
+	using(productid)
+	group by productid
+)
+select productid, t_sold, round(revenue_per_product*100.0/(select sum(line_total)::numeric from sales),4) as rev_per
+from cte
+order by rev_per desc
+limit 10
+```
+
+### Returns
+
+**-Overall returns rate**:
 ```sql
 with cte as(
-	select sum(quantity) as t_returned
+	select sum(quantity) as t_products_returned
 	from pt_transactions
 	where transaction_type = 'Return'
 ),
 sale as(
-	select sum(quantity) as t_sold
+	select sum(quantity) as t_products_sold
 	from pt_transactions
 	where transaction_type = 'Sale'
 )
-select t_sold, t_returned
+select t_products_sold, t_products_returned, round(t_products_returned*100.0/t_products_sold,2) as return_perc
 from cte
 cross join sale
 ```
 
-**-Returns rate**:
-```sql
-with cte as(
-	select sum(quantity) as t_returned
-	from pt_transactions
-	where transaction_type = 'Return'
-),
-sale as(
-	select sum(quantity) as t_sold
-	from pt_transactions
-	where transaction_type = 'Sale'
-)
-select round(t_returned*100.0/t_sold,2) as return_perc
-from cte
-cross join sale
-```
-
-**-Top 10 products with high return rate:**
+**- Products with more than 50% return rate:**
 ```sql
 with cte as(
 	select productid, sum(quantity) as t_sold
@@ -545,15 +524,21 @@ sale as(
 	from pt_transactions
 	where transaction_type = 'Return'
 	group by productid
+),
+measures as(
+	select productid, t_sold, t_returned, round(t_returned*100.0/t_sold, 2) as perc
+	from cte
+	right join sale
+	using(productid)
+	where t_returned*100.0/t_sold <=100
+	and t_sold > 5
 )
-select productid, t_sold, t_returned, round(t_returned*100.0/t_sold, 2) as perc
-from cte
-right join sale
+select m.*, category, sub_category, description_pt 
+from measures m
+left join products p
 using(productid)
-where t_returned*100.0/t_sold <=100
-and t_sold > 5
+where perc >=50 
 order by perc desc
-limit 10
 ```
 
 **-Top 10 product categories with high return rate:**
@@ -585,8 +570,20 @@ group by sub_category
 order by return_rate desc
 limit 10
 ```
+### Store/Region
 
-## **2. Customer analytics**
+**- Quartely revenue per store and region:**
+```sql
+select round(sum(t_invoice)::numeric, 2) as revenue, storeid, city, date_trunc('quarter', date) as quarter
+from pt_revenue r
+left join pt_transactions t
+on sale_id = invoiceid
+where t_invoice > 0
+group by storeid, quarter, city
+order by quarter, storeid
+```
+
+## **Customer Behavior**
 
 **- Total purchases, max spent, min, spent and AOV per customer:**
 ```sql
@@ -678,12 +675,12 @@ Output (max, min, and avg):
 
 
 
-# Data visualization
+# Data Visualization
 Building a report in Power BI to be used by the stakeholder. It should be simple and direct to answer BI questions.
 
 - Data distribution: historiogram for customer buying (age and total purchase), spending habits of customers (total spent per transaction)
 
-# BI insights
+# Business Insights
 - The quarter of 2023/10 had a peak in sales, products sold, and revenue, but the profit margin was average.
 - Products from the subcategory 'Coats and Blazer', 'Pants and Jeans' and 'Suits and Sets' contribute the most to the total sales revenue (respectivelly 13.2%, 12.5%, 11.7%).
 - Products from the subcategory 'Baby(0-12 months)' are the most profitable, even though their sales volume and contribution to total sales revenue is lower than average.
