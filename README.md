@@ -1,9 +1,9 @@
 # SQL-Retail-Analysis
 SQL-powered analysis of retail fashion data, exploring sales trends, customer behavior, and market insights to help answer stakeholders' BI questions.
-*The goal and stakeholders are ficticious. This project was made for educational purposes.
 
-# Overview
-## Contents:
+*The goal and stakeholders are ficticious. This project was made for educational purposes.*
+
+## Table of Contents:
 1. [The Dataset](#the-dataset)
 2. [Technologies Used](#technologies-used)
 3. [Project Goal](#project-goal)
@@ -12,46 +12,47 @@ SQL-powered analysis of retail fashion data, exploring sales trends, customer be
 6. [Creating the Database](#creating-the-database)
 7. [Exploratory Data Analysis (EDA)](#exploratory-data-analysis)
    - [Sales Analysis](#sales-analysis)
-     - Revenue
-     - Profit Margin
-     - Sales Volume and Product
-     - Returns
-     - Store/Region Performance
-   - [Customer Behavior](#customer-behavior)
+     - [Revenue](#revenue)
+     - [Profit Margin](#profit-margin)
+     - [Sales Volume and Product](#sales-volume-and-product)
+     - [Returns](#returns)
+     - [Store/Region Performance](#storeregion-performance)
+   - [Customer Analysis](#customer-analysis)
 8. [Data Visualization](#data-visualization)
-9. [Business Insights](#business-insights)
+9. [Key Outcomes](#key-outcomes)
 
 ## The Dataset
-Sales simulation for 2 years of a multinational brand.
-Downloaded through API. In: https://www.kaggle.com/datasets/ricgomes/global-fashion-retail-stores-dataset/data?select=customers.csv
+This dataset contains **sales simulations** for 2 years of a multinational fashion retail company, covering global sales transactions.
+
+The data was downloaded via the API from: [Kaggle - Global Fashion Retail Stores Dataset](https://www.kaggle.com/datasets/ricgomes/global-fashion-retail-stores-dataset/data?select=customers.csv)
 
 ## Technologies Used:
-- PostgreSQL
-- SQL
-- Power BI
+- **PostgreSQL**: For database management and SQL querying
+- **SQL**: Used for data manipulation and analysis
+- **Power BI**: For data visualization and reporting
 
 ## Project Goal:
-This project aims to analyze two years of transaction data for a global fashion retail company to support Business Intelligence (BI) decision-making. The main objective is to provide actionable insights that help stakeholders optimize sales and marketing strategies for the upcoming year.
+The primary objective of this project is to **analyze two years of transaction data** for a global fashion retail company. The goal is to provide actionable insights that will help **optimize sales and marketing strategies** for the upcoming year, with a focus on improving sales performance, understanding customer behavior, and identifying areas of improvement.
 
 ## Stakeholder and Business Context
-The primary stakeholder is the **Manager of Portuguese Stores**, who needs data-driven insights to make informed decisions about:
-- Sales performance trends
-- Customer purchasing behavior
+The **Manager of Portuguese Stores** is the main stakeholder for this project. The goal is to support their decision-making by providing **data-driven insights** on:
+
+- Sales performance trends across various stores and regions.
+- Customer purchasing behavior to improve future marketing and sales strategies.
 
 ## BI Questions:
-1.  Sales and marketing strategy:
-	- Which products and categories contribute the most and the less to the revenue?
-	- Are there regions or stores that are underperforming?
-	- What season sells the most? 
-	- Are certain products more prone to returns?
-	
-2. Customer behaviour 
-	- Who are our top buyers?
-	- Whats the average order value (AOV) of customers?
-	- Do younger customers buy different products than older ones?
-	- Are return rates higher for certain age groups?
+1. **Sales and Marketing Strategy**:
+    - Which products and categories contribute the most to the revenue?  
+    - Are there any regions or stores underperforming?
+    - What season sees the highest sales?
+    - Are certain products more prone to returns?
 
-# Creating the database
+2. **Customer Behavior**:
+    - Who are our top buyers?
+    - What is the **average order value (AOV)** of customers?
+    - Are return rates higher for certain age groups?
+
+## Creating the database
 Create db, tables and define relationships by a star schema.
 
 ```sql
@@ -142,9 +143,10 @@ CREATE TABLE transactions (
 );
 ```
 
-# Exploratory Data Analysis
+## Exploratory Data Analysis
+This section outlines the analysis conducted on the dataset to explore sales trends, customer behavior, and more.
 
-We start by creating a **view** to store a filter on transactions made in Portuguese stores. We will be using this filter in many other queries.
+We begin by creating a **view** that filters transactions specifically from Portuguese stores. This view will be used in several other queries throughout the analysis to maintain consistency and avoid redundant code.
 
 ```sql
 CREATE VIEW pt_transactions AS
@@ -154,8 +156,12 @@ inner join stores s
 on s.storeid = t.storeid
 where s.country = 'Portugal'
 ```
-**Adressing data quality issues**
-Some data on return invoices are duplicated (the same value twice, or some of the products being returned twice), causing returns to exceed purchase (one invoice should have only one invoice total, but the issue cuases one invoice to have two or more invoice total, caused by the some product being counted twice). The problem is probablt related to data entry. My solution is to relate each sale with its return in a view, but keeping only the max (min is used in the query since its a negative value) returned value to each invoice (we then avoid duplication of the entire invoice, or duplication of some returned products).
+## **Adressing data quality issues**
+
+Some of the return invoices in the dataset are duplicated, causing returns to exceed the purchase value. This happens because a single invoice may have multiple return entries, leading to inflated return totals. The issue likely stems from data entry errors, where products are counted multiple times as returned.
+
+To address this, I created a view that relates each sale to its return, keeping only the maximum (or minimum, in the case of negative values) return amount for each invoice. This ensures that no invoice or product is duplicated in the return calculations.
+
 ```sql
 CREATE VIEW pt_revenue AS 
 with sales as(
@@ -182,7 +188,7 @@ from cte
 ## **Sales Analysis**
 ### Revenue
 
-**-Total revenue per year:**
+**Total revenue per year**
 ```sql
 select ROUND(sum(t_invoice)::numeric, 2) as total_revenue, date_part('year', date) as year
 from pt_revenue r
@@ -193,7 +199,7 @@ group by date_part('year', date)
 limit 20
 ```
 
-**-Total revenue per month/year:**
+**Total revenue per month/year**
 ```sql
 SELECT date_trunc('month', date) as month, round(sum(t_invoice)::numeric, 2) as monthly_revenue
 from pt_revenue
@@ -203,7 +209,7 @@ where t_invoice > 0
 group by month
 ```
 
-**- Seasonal net sales peak:**
+**Seasonal net sales peak**
 ```sql
 WITH CTE AS(
 	SELECT date_trunc('month', date) as month, round(sum(t_invoice)::numeric, 2) as monthly_rev
@@ -225,7 +231,7 @@ where monthly_rev > prev_month_rev
 and monthly_rev > next_month_rev
 ```
 
-**- Minimum, maximum and mean of sales revenue:**
+**Minimum, maximum and mean of sales revenue**
 Filtering t_invoice > 0.5 to avoid possible taxes and fees.
 ```sql
 select min(t_invoice), max(t_invoice), ROUND(avg(t_invoice)::numeric, 2)
@@ -235,7 +241,7 @@ where t_invoice > 0.5
 
 ### Profit Margin
 
-**-Overall profit margin:**
+**Overall profit margin**
 ```sql
 with temp as (
 	select invoiceid, line_total, quantity, productid
@@ -254,7 +260,7 @@ select sum(production_cost) as t_costs, sum(sale_value) as t_sales, sum(profit_m
 from cte
 ```
 
-**- Profit margin per quarter:**
+**Profit margin per quarter**
 ```sql
 with temp as (
 	select invoiceid, line_total, quantity, productid, date_trunc('quarter', date) as quarter
@@ -278,7 +284,7 @@ from cte
 group by quarter
 order by quarter asc
 ```
-**- Profit margin per product sale:**
+**Profit margin per product sale**
 ```sql
 with cte as (
 	select productid, sale_id, quantity, line_total 
@@ -303,7 +309,7 @@ order by profit_perc desc
 limit 5
 ```
 
-**-Profit margin per product subcategory:**
+**Profit margin per product subcategory**
 ```sql
 with cte as (
 	select productid, sale_id, quantity, line_total 
@@ -326,7 +332,7 @@ from temp
 group by sub_category
 order by profit_perc desc
 ```
-**-Profit margin per product category:**
+**Profit margin per product category**
 ```sql
 with cte as (
 	select productid, sale_id, quantity, line_total 
@@ -352,7 +358,7 @@ limit 50
 ```
 ### Sales Volume and Product
 
-**- Top 10 net sold products:**
+**Top 10 net sold products**
 ```sql
 with sales as (
 	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
@@ -370,7 +376,7 @@ order by total_sold desc
 limit 10
 ```
 
-**- Total net sales per quarter:**
+**Total net sales per quarter**
 ```sql
 select date_trunc('quarter', date) as quarter, count(distinct sale_id) as total_sales
 from pt_revenue
@@ -381,7 +387,7 @@ group by quarter
 order by quarter asc
 ```
 
-**- Total products net sold per quarter:**
+**Total products net sold per quarter**
 ```sql
 select date_trunc('quarter', date) as quarter, count(productid) as t_sold_products
 from pt_revenue
@@ -392,7 +398,7 @@ group by quarter
 order by quarter asc
 ```
 
-**-Products net sold per subcategory and quarter:**
+**Products net sold per subcategory and quarter**
 ```sql
 with sales as (
 	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date_trunc('quarter', date) as quarter
@@ -409,7 +415,7 @@ group by sub_category, quarter
 order by quarter, sub_category desc
 ```
 
-**- % Net sales per category comparison:**
+**% Net sales per category comparison**
 ```sql
 with sales as (
 	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
@@ -430,7 +436,7 @@ from cte
 order by perc desc
 ```
 
-**- % Contribution to Net Sales Revenue per Category**:
+**% Contribution to Net Sales Revenue per Category**
 ```sql
 with sales as (
 	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
@@ -450,7 +456,7 @@ select category, round(revenue_per_category*100.0/(select sum(line_total)::numer
 from cte
 order by rev_per desc
 ```
-**- % Contribution to Net Sales Revenue per Subcategory:**
+**% Contribution to Net Sales Revenue per Subcategory**
 ```sql
 with sales as (
 	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
@@ -470,7 +476,7 @@ select sub_category, round(revenue_per_sub_category*100.0/(select sum(line_total
 from cte
 order by rev_per desc
 ```
-**- % Contribution to Net Sales Revenue per Product:**
+**% Contribution to Net Sales Revenue per Product**
 ```sql
 with sales as (
 	select r.sale_id, t_invoice, p.productid, p.unit_price, p.quantity, discount, p.line_total, date
@@ -494,7 +500,7 @@ limit 10
 
 ### Returns
 
-**-Overall returns rate**:
+**Overall returns rate**
 ```sql
 with cte as(
 	select sum(quantity) as t_products_returned
@@ -511,7 +517,7 @@ from cte
 cross join sale
 ```
 
-**- Products with more than 50% return rate:**
+**Products with more than 50% return rate**
 ```sql
 with cte as(
 	select productid, sum(quantity) as t_sold
@@ -541,7 +547,7 @@ where perc >=50
 order by perc desc
 ```
 
-**-Top 10 product categories with high return rate:**
+**Top 10 product categories with high return rate**
 ```sql
 with cte as(
 	select productid, sum(quantity) as t_sold
@@ -570,9 +576,37 @@ group by sub_category
 order by return_rate desc
 limit 10
 ```
-### Store/Region
 
-**- Quartely revenue per store and region:**
+**Returns per age group**
+```sql
+with cte as(
+	select customerid, 
+		CASE 
+			WHEN 2025-date_part('year', date_of_birth) <25 then '18-24'
+			WHEN 2025-date_part('year', date_of_birth) BETWEEN 25 and 34 then '25-34'
+			WHEN 2025-date_part('year', date_of_birth) BETWEEN 35 and 44 then '35-44'
+			WHEN 2025-date_part('year', date_of_birth) BETWEEN 45 and 54 then '45-54'
+			WHEN 2025-date_part('year', date_of_birth) >54 then '55+'
+		END as age
+	from rfm
+	left join customers
+	using(customerid)
+	where frequency_score = 5 and monetary_score = 5 and recency_score = 5
+)
+select age, count(invoiceid) as total_returns
+from cte
+left join pt_transactions
+using(customerid)
+where transaction_type = 'Return'
+group by age
+order by age 
+
+```
+
+
+### Store/Region Performance
+
+**Quartely revenue per store and region**
 ```sql
 select round(sum(t_invoice)::numeric, 2) as revenue, storeid, city, date_trunc('quarter', date) as quarter
 from pt_revenue r
@@ -582,10 +616,12 @@ where t_invoice > 0
 group by storeid, quarter, city
 order by quarter, storeid
 ```
+Categories
 
-## **Customer Behavior**
 
-**- Total purchases, max spent, min, spent and AOV per customer:**
+## **Customer Analysis**
+
+**Total purchases, max spent, min, spent and AOV per customer**
 ```sql
 with cte as(
 	select distinct customerid, t_invoice 
@@ -600,7 +636,7 @@ group by customerid
 order by avg_spent desc
 ```
 
-**- Customers from portuguese shops per age and gender-**
+**Customers from portuguese shops per age and gender**
 ```sql
 with cte as (
 	select r.*, customerid
@@ -616,7 +652,7 @@ group by customerid, age, gender
 order by total_revenue desc
 ```
 
-**- Max and min customers age:**
+**Max and min customers age**
 ```sql
 with cte as (
 	select r.*, customerid
@@ -629,7 +665,9 @@ from cte
 left join customers
 using(customerid)
 ```
-**-RFM analysis:**
+
+### **RFM segmentation**
+
 ```sql
 with cte as(
 	select customerid, 
@@ -639,53 +677,174 @@ with cte as(
 	from pt_transactions
 	where transaction_type = 'Sale'
 	group by customerid
-)
-select customerid, (current_date - last_purchase_date) as recency, frequency, monetary
-from cte
-order by monetary desc
-```
-**- Defining RFM scores:**
-Calculating percentiles Q1, Q2, Q3 and Q4.
-```sql
-with cte as(
-	select customerid, 
-		max(date_trunc('day', date)::date) as last_purchase_date, 
-		count(distinct invoiceid) as frequency, 
-		round(sum(invoice_total)::numeric, 2) as monetary
-	from pt_transactions
-	where transaction_type = 'Sale'
-	group by customerid
-),
-rfm as(
+), rfm as(
 	select customerid, (current_date - last_purchase_date) as recency, frequency, monetary
 	from cte
-	order by monetary desc
-)
-select max(recency), min(recency), avg(recency),
-	max(frequency), min(frequency), avg(frequency),
-	max(monetary), min(monetary), avg(monetary)
+),
+ntiles as (
+SELECT customerid, recency, frequency, monetary,
+	ntile(5) over(order by recency desc) as recency_score,
+	ntile(5) over(order by frequency asc) as frequency_score,
+	ntile(5) over(order by monetary asc) as monetary_score
 from rfm
+)
+select *
+from ntiles
+order by recency_score desc, frequency_score desc, monetary_score desc
+
 ```
 
-Output (max, min, and avg):
-- Recency: 823, 16, 243.0
-- Frequency: 30, 1, 3.8
-- Monetary: 8650, 2.5, 516.9
+**Finding top customers**
+```sql
+with cte as(
+	select customerid, 
+		max(date_trunc('day', date)::date) as last_purchase_date, 
+		count(distinct invoiceid) as frequency, 
+		round(sum(invoice_total)::numeric, 2) as monetary
+	from pt_transactions
+	where transaction_type = 'Sale'
+	group by customerid
+), rfm as(
+	select customerid, (current_date - last_purchase_date) as recency, frequency, monetary
+	from cte
+),
+ntiles as (
+SELECT customerid, recency, frequency, monetary,
+	ntile(5) over(order by recency desc) as recency_score,
+	ntile(5) over(order by frequency asc) as frequency_score,
+	ntile(5) over(order by monetary asc) as monetary_score
+from rfm
+)
+select customerid, recency_score, frequency_score, monetary_score
+from ntiles
+where recency_score = 5 and frequency_score = 5 and monetary_score = 5
+order by recency_score desc, frequency_score desc, monetary_score desc
+```
+
+**Creating a view with the RFM segmentation**
+```sql
+CREATE VIEW rfm AS ( 
+with cte as(
+	select customerid, 
+		max(date_trunc('day', date)::date) as last_purchase_date, 
+		count(distinct invoiceid) as frequency, 
+		round(sum(invoice_total)::numeric, 2) as monetary
+	from pt_transactions
+	where transaction_type = 'Sale'
+	group by customerid
+), rfm as(
+	select customerid, (current_date - last_purchase_date) as recency, frequency, monetary
+	from cte
+),
+ntiles as (
+SELECT customerid, recency, frequency, monetary,
+	ntile(5) over(order by recency desc) as recency_score,
+	ntile(5) over(order by frequency asc) as frequency_score,
+	ntile(5) over(order by monetary asc) as monetary_score
+from rfm
+)
+select *
+from ntiles
+order by recency_score desc, frequency_score desc, monetary_score desc
+)
+```
+
+### **Demographic analysis of top consumers**
+**Max, Min and AVG age of top customers**
+```sql
+select avg(2025-date_part('year', date_of_birth)), max(2025-date_part('year', date_of_birth)), 
+	min(2025-date_part('year', date_of_birth))
+from rfm
+left join customers
+using(customerid)
+where frequency_score = 5 and monetary_score = 5 and recency_score = 5
+```
+**Count top customers per age group**
+```sql
+with cte as(
+	select customerid, 
+		CASE 
+			WHEN 2025-date_part('year', date_of_birth) <25 then '18-24'
+			WHEN 2025-date_part('year', date_of_birth) BETWEEN 25 and 34 then '25-34'
+			WHEN 2025-date_part('year', date_of_birth) BETWEEN 35 and 44 then '35-44'
+			WHEN 2025-date_part('year', date_of_birth) BETWEEN 45 and 54 then '45-54'
+			WHEN 2025-date_part('year', date_of_birth) >54 then '+55'
+		END as age
+	from rfm
+	left join customers
+	using(customerid)
+	where frequency_score = 5 and monetary_score = 5 and recency_score = 5
+)
+select age, count(customerid)
+from cte
+group by age
+order by age
+```
+**Gender ratio of top customers**
+```sql
+with cte as(
+	select gender, COUNT(gender) as t_gender
+	from rfm
+	left join customers
+	using(customerid)
+	where frequency_score = 5 and monetary_score = 5 and recency_score = 5
+	GROUP BY gender
+), total as (
+	select count(distinct customerid) as t_customers
+	from rfm
+	where frequency_score = 5 and monetary_score = 5 and recency_score = 5
+)
+select gender, round(t_gender*100 / t_customers, 2) as ratio
+from cte
+cross join total
+```
+
+## Data Visualization
+To effectively present the insights from the analysis, a **Power BI report** was built to help the stakeholder make informed decisions. The report is designed to be **simple**, **intuitive**, and **direct**, with visualizations that specifically address the key BI questions. 
+
+The following components are included in the report:
+- **Revenue trends** over time (yearly, monthly).
+- **Top-performing products** by category and subcategory.
+- **Profit margins** across categories and subcategories.
+- **Customer behavior analysis**, including top buyers and return rates.
+- **Regional performance**, highlighting stores or areas that need attention.
+
+The goal is for the report to provide actionable insights at a glance, allowing the stakeholder to easily identify trends and make decisions based on the visualized data.
 
 
+## Key Outcomes
 
+- - **Sales Peak**: The quarter of **2023/10** saw a peak in **sales**, and **revenue**, though the **profit margin** was average.
+  
+- **Top Subcategories by Revenue**:
+  - **'Coats and Blazers'**: 13.2% of total sales revenue
+  - **'Pants and Jeans'**: 12.5% of total sales revenue
+  - **'Suits and Sets'**: 11.7% of total sales revenue
 
-# Data Visualization
-Building a report in Power BI to be used by the stakeholder. It should be simple and direct to answer BI questions.
+- **Most Profitable Products**: Products from the subcategory **'Baby (0-12 months)'** have the highest profit margins, despite lower sales volume and contribution to overall revenue.
 
-- Data distribution: historiogram for customer buying (age and total purchase), spending habits of customers (total spent per transaction)
+- **Category Contribution to Sales Revenue**:
+  - **Feminine**: 60.1% of total sales revenue
+  - **Masculine**: 30.8% of total sales revenue
+  - **Children**: 8.9% of total sales revenue
 
-# Business Insights
-- The quarter of 2023/10 had a peak in sales, products sold, and revenue, but the profit margin was average.
-- Products from the subcategory 'Coats and Blazer', 'Pants and Jeans' and 'Suits and Sets' contribute the most to the total sales revenue (respectivelly 13.2%, 12.5%, 11.7%).
-- Products from the subcategory 'Baby(0-12 months)' are the most profitable, even though their sales volume and contribution to total sales revenue is lower than average.
-- Products from the category 'Feminine' contribute 60.1% to the total sales revenue, Masculine 30.8% and Children 8.9%.
-- Products from the category 'Feminine' and 'Masculine' have a 57% of profit margin, while 'Children' have 54.5% of profit margin.
-- Sales peak in the months of March, September, October and December.
-- 5.5% of all bought products were returned.
-- Products from the subcatgory 'Baby (0-12months)', 'Pajamas' and 'Underwear and pajamas' have the highers return rate (respectively 9.3%, 8.8%, and 8.2%).
+- **Profit Margin by Category**:
+  - **Feminine**: 57% profit margin
+  - **Masculine**: 57% profit margin
+  - **Children**: 54.5% profit margin
+
+- **Sales Peaks**: The months of **March**, **September**, **October**, and **December** saw significant sales activity.
+
+- **Return Rate**: Overall, **5.5%** of all purchased products were returned.
+
+- **Highest Return Rates by Subcategory**:
+  - **'Baby (0-12 months)'**: 9.3% return rate
+  - **'Pajamas'**: 8.8% return rate
+  - **'Underwear and Pajamas'**: 8.2% return rate
+
+- **Top Customers**: The highest-spending customers are **women aged 35-54**.
+
+- **Return Rates by Age Group**:
+  - Return rates are higher for age groups between **45-54** and **35-44**—groups that also have the highest purchases.
+
+These insights are crucial for understanding customer behavior, sales trends, and areas of opportunity for future strategy adjustments.
