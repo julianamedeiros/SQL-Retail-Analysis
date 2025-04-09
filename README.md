@@ -9,17 +9,18 @@ SQL-powered analysis of retail fashion data, exploring sales trends, customer be
 3. [Project Goal](#project-goal)
 4. [Stakeholder and Business Context](#stakeholder-and-business-context)
 5. [BI Questions](#bi-questions)
-6. [Creating the Database](#creating-the-database)
-7. [Exploratory Data Analysis (EDA)](#exploratory-data-analysis)
-   - [Sales Analysis](#sales-analysis)
-     - [Revenue](#revenue)
-     - [Profit Margin](#profit-margin)
-     - [Sales Volume and Product](#sales-volume-and-product)
-     - [Returns](#returns)
-     - [Store/Region Performance](#storeregion-performance)
-   - [Customer Analysis](#customer-analysis)
+6. [Creating the Database](SQL-exploratory-data-analysis.md#creating-the-database)
+7. [Exploratory Data Analysis (EDA)](SQL-exploratory-data-analysis.md)
+   - [Sales Analysis](SQL-exploratory-data-analysis.md#sales-analysis)
+     - [Revenue](SQL-exploratory-data-analysis.md#revenue)
+     - [Profit Margin](SQL-exploratory-data-analysis.md#profit-margin)
+     - [Sales Volume and Product](SQL-exploratory-data-analysis.md#sales-volume-and-product)
+     - [Returns](SQL-exploratory-data-analysis.md#returns)
+     - [Store/Region Performance](SQL-exploratory-data-analysis.md#storeregion-performance)
+   - [Customer Analysis](SQL-exploratory-data-analysis.md#customer-analysis)
 8. [Data Visualization](#data-visualization)
 9. [Key Outcomes](#key-outcomes)
+
 
 ## The Dataset
 This dataset contains **sales simulations** for 2 years of a multinational fashion retail company, covering global sales transactions.
