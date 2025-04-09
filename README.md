@@ -51,3 +51,54 @@ The **Manager of Portuguese Stores** is the main stakeholder for this project. T
     - Who are our top buyers?
     - What is the **average order value (AOV)** of customers?
     - Are return rates higher for certain age groups?
+
+
+## Data Visualization
+To effectively present the insights from the analysis, a **Power BI report** was built to help the stakeholder make informed decisions. The report is designed to be **simple**, **intuitive**, and **direct**, with visualizations that specifically address the key BI questions. 
+
+The following components are included in the report:
+- **Revenue trends** over time (yearly, monthly).
+- **Top-performing products** by category and subcategory.
+- **Profit margins** across categories and subcategories.
+- **Customer behavior analysis**, including top buyers and return rates.
+- **Regional performance**, highlighting stores or areas that need attention.
+
+The goal is for the report to provide actionable insights at a glance, allowing the stakeholder to easily identify trends and make decisions based on the visualized data.
+
+
+## Key Outcomes
+
+- - **Sales Peak**: The quarter of **2023/10** saw a peak in **sales**, and **revenue**, though the **profit margin** was average.
+  
+- **Top Subcategories by Revenue**:
+  - **'Coats and Blazers'**: 13.2% of total sales revenue
+  - **'Pants and Jeans'**: 12.5% of total sales revenue
+  - **'Suits and Sets'**: 11.7% of total sales revenue
+
+- **Most Profitable Products**: Products from the subcategory **'Baby (0-12 months)'** have the highest profit margins, despite lower sales volume and contribution to overall revenue.
+
+- **Category Contribution to Sales Revenue**:
+  - **Feminine**: 60.1% of total sales revenue
+  - **Masculine**: 30.8% of total sales revenue
+  - **Children**: 8.9% of total sales revenue
+
+- **Profit Margin by Category**:
+  - **Feminine**: 57% profit margin
+  - **Masculine**: 57% profit margin
+  - **Children**: 54.5% profit margin
+
+- **Sales Peaks**: The months of **March**, **September**, **October**, and **December** saw significant sales activity.
+
+- **Return Rate**: Overall, **5.5%** of all purchased products were returned.
+
+- **Highest Return Rates by Subcategory**:
+  - **'Baby (0-12 months)'**: 9.3% return rate
+  - **'Pajamas'**: 8.8% return rate
+  - **'Underwear and Pajamas'**: 8.2% return rate
+
+- **Top Customers**: The highest-spending customers are **women aged 35-54**.
+
+- **Return Rates by Age Group**:
+  - Return rates are higher for age groups between **45-54** and **35-44**—groups that also have the highest purchases.
+
+These insights are crucial for understanding customer behavior, sales trends, and areas of opportunity for future strategy adjustments.
